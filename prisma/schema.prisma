@@ -1,0 +1,222 @@
+// Prisma schema for Royal Eye Candy — connects to the Supabase Postgres
+// instance. Run `npx prisma migrate dev` after DATABASE_URL is set.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // Pooled connection (via Supabase's PgBouncer, port 6543) for app runtime.
+  url       = env("DATABASE_URL")
+  // Direct connection (port 5432) used only for running migrations.
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum ProductCategory {
+  DTF
+  GANG_SHEET
+  APPAREL
+  WIDE_FORMAT
+  BANNER
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  IN_PRODUCTION
+  SHIPPED
+  COMPLETED
+  CANCELLED
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+/// Mirrors a Supabase `auth.users` row (id = auth uid) with app-specific fields.
+model Profile {
+  id        String   @id
+  email     String   @unique
+  name      String?
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+
+  orders   Order[]
+  artworks ArtworkFile[]
+
+  @@map("profiles")
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  slug           String          @unique
+  name           String
+  category       ProductCategory
+  description    String
+  images         String[]        @default([])
+  active         Boolean         @default(true)
+  inventoryCount Int?
+  seoTitle       String?
+  seoDescription String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  pricingRules PricingRule[]
+  orderItems   OrderItem[]
+
+  @@map("products")
+}
+
+/// Flexible per-product pricing config (rate tiers, size tables, etc.)
+/// interpreted by src/lib/pricing.ts. Kept schemaless via JSON so the admin
+/// can adjust rates without a migration.
+model PricingRule {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  config    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("pricing_rules")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  userId          String?
+  user            Profile?    @relation(fields: [userId], references: [id])
+  guestEmail      String?
+  status          OrderStatus @default(PENDING_PAYMENT)
+  subtotal        Decimal     @db.Decimal(10, 2)
+  shipping        Decimal     @db.Decimal(10, 2)
+  tax             Decimal     @default(0) @db.Decimal(10, 2)
+  discount        Decimal     @default(0) @db.Decimal(10, 2)
+  total           Decimal     @db.Decimal(10, 2)
+  couponCode      String?
+  shippingOption  String?
+  shippingAddress Json?
+  stripeSessionId String?     @unique
+  trackingNumber  String?
+  trackingCarrier String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  items OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id            String          @id @default(cuid())
+  orderId       String
+  order         Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId     String?
+  product       Product?        @relation(fields: [productId], references: [id])
+  category      ProductCategory
+  productSlug   String
+  name          String
+  description   String
+  variant       String?
+  widthIn       Decimal?        @db.Decimal(6, 2)
+  heightIn      Decimal?        @db.Decimal(6, 2)
+  quantity      Int
+  unitPrice     Decimal         @db.Decimal(10, 2)
+  lineTotal     Decimal         @db.Decimal(10, 2)
+  artworkFileId String?
+  artworkFile   ArtworkFile?    @relation(fields: [artworkFileId], references: [id])
+
+  @@map("order_items")
+}
+
+model ArtworkFile {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          Profile? @relation(fields: [userId], references: [id])
+  storagePath   String
+  originalName  String
+  fileType      String
+  widthPx       Int?
+  heightPx      Int?
+  lowResWarning Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  orderItems    OrderItem[]
+  quoteRequests QuoteRequest[]
+
+  @@map("artwork_files")
+}
+
+enum QuoteRequestStatus {
+  NEW
+  CONTACTED
+  QUOTED
+  WON
+  LOST
+}
+
+/// Lead capture for services priced by hand (vehicle wraps, storefront
+/// lettering, custom vinyl, etc.) rather than the instant calculators.
+model QuoteRequest {
+  id             String             @id @default(cuid())
+  category       String
+  name           String
+  email          String
+  phone          String?
+  projectDetails String
+  artworkFileId  String?
+  artworkFile    ArtworkFile?       @relation(fields: [artworkFileId], references: [id])
+  status         QuoteRequestStatus @default(NEW)
+  createdAt      DateTime           @default(now())
+
+  @@map("quote_requests")
+}
+
+model Coupon {
+  id             String     @id @default(cuid())
+  code           String     @unique
+  type           CouponType
+  value          Decimal    @db.Decimal(10, 2)
+  active         Boolean    @default(true)
+  minOrderAmount Decimal?   @db.Decimal(10, 2)
+  expiresAt      DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@map("coupons")
+}
+
+model ShippingRule {
+  id         String  @id @default(cuid())
+  name       String
+  conditions Json
+  cost       Decimal @db.Decimal(10, 2)
+  active     Boolean @default(true)
+
+  @@map("shipping_rules")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  authorName String
+  rating     Int
+  body       String
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  @@map("reviews")
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("newsletter_subscribers")
+}

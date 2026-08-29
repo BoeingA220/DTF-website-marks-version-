@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #111111;
+
+  /* Royal Eye Candy brand palette */
+  --color-royal: #0057b8;
+  --color-royal-dark: #003e85;
+  --color-royal-light: #2b76d1;
+  --color-cyan: #00b8ff;
+  --color-cyan-dark: #0092cc;
+  --color-ink: #111111;
+  --color-accent: #e63946;
+  --color-accent-dark: #c62838;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-royal: var(--color-royal);
+  --color-royal-dark: var(--color-royal-dark);
+  --color-royal-light: var(--color-royal-light);
+  --color-cyan: var(--color-cyan);
+  --color-cyan-dark: var(--color-cyan-dark);
+  --color-ink: var(--color-ink);
+  --color-accent: var(--color-accent);
+  --color-accent-dark: var(--color-accent-dark);
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-poppins);
+
+  --animate-spin-slow: spin 6s linear infinite;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+.font-display {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+}
+
+@layer utilities {
+  .text-gradient-brand {
+    background-image: linear-gradient(
+      90deg,
+      var(--color-royal) 0%,
+      var(--color-cyan) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .bg-gradient-brand {
+    background-image: linear-gradient(
+      120deg,
+      var(--color-royal) 0%,
+      var(--color-cyan) 100%
+    );
+  }
+
+  .container-brand {
+    width: 100%;
+    max-width: 80rem;
+    margin-inline: auto;
+    padding-inline: 1.25rem;
+  }
+}
+
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--color-cyan);
+    outline-offset: 2px;
+  }
+}
+
+@media print {
+  body > * > header,
+  body > * > footer,
+  .no-print {
+    display: none !important;
+  }
+}
