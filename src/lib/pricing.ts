@@ -208,7 +208,7 @@ export function getShippingOptions(subtotal: number): ShippingOption[] {
 
 // ---------------------------------------------------------------------------
 // Server-side re-validation — recomputes a cart line's price from scratch so
-// a tampered client-side unitPrice/lineTotal can never reach Stripe.
+// a tampered client-side unitPrice/lineTotal can never reach Square.
 // ---------------------------------------------------------------------------
 
 export function revalidateCartItem(item: CartItem): PricingBreakdown | null {

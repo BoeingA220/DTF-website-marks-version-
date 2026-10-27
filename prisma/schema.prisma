@@ -103,7 +103,7 @@ model Order {
   couponCode      String?
   shippingOption  String?
   shippingAddress Json?
-  stripeSessionId String?     @unique
+  squareOrderId   String?     @unique
   trackingNumber  String?
   trackingCarrier String?
   createdAt       DateTime    @default(now())

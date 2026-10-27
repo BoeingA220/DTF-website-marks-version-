@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getStripe } from "@/lib/stripe";
+import { getSquareClient, getSquareLocationId, toMoneyAmount } from "@/lib/square";
 import { getShippingOptions, revalidateCartItem, round2 } from "@/lib/pricing";
 import { validateCoupon } from "@/lib/coupons";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
+import type { Order as SquareOrder, OrderLineItem, OrderLineItemDiscount } from "square";
 
 const cartItemSchema = z.object({
   id: z.string(),
@@ -120,65 +121,75 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const stripe = getStripe();
+    const square = getSquareClient();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
-    const lineItems = validated.map(({ item, breakdown }) => ({
-      quantity: item.quantity,
-      price_data: {
-        currency: "usd",
-        unit_amount: Math.round(breakdown.unitPrice * 100),
-        product_data: {
-          name: item.name,
-          description: `${item.description}${item.variant ? ` — ${item.variant}` : ""}`,
-        },
+    const lineItems: OrderLineItem[] = validated.map(({ item, breakdown }) => ({
+      name: item.name,
+      quantity: String(item.quantity),
+      basePriceMoney: {
+        amount: toMoneyAmount(breakdown.unitPrice),
+        currency: "USD",
       },
+      note: `${item.description}${item.variant ? ` — ${item.variant}` : ""}`.slice(0, 500),
     }));
 
     if (shippingOption.cost > 0) {
       lineItems.push({
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          unit_amount: Math.round(shippingOption.cost * 100),
-          product_data: { name: shippingOption.label, description: "" },
-        },
+        name: shippingOption.label,
+        quantity: "1",
+        basePriceMoney: { amount: toMoneyAmount(shippingOption.cost), currency: "USD" },
       });
     }
 
-    let discounts: { coupon: string }[] | undefined;
-    if (discountAmount > 0) {
-      const stripeCoupon = await stripe.coupons.create({
-        amount_off: Math.round(discountAmount * 100),
-        currency: "usd",
-        duration: "once",
-        name: appliedCouponCode ?? "Discount",
-      });
-      discounts = [{ coupon: stripeCoupon.id }];
-    }
+    const discounts: OrderLineItemDiscount[] | undefined =
+      discountAmount > 0
+        ? [
+            {
+              name: appliedCouponCode ?? "Discount",
+              type: "FIXED_AMOUNT",
+              scope: "ORDER",
+              amountMoney: { amount: toMoneyAmount(discountAmount), currency: "USD" },
+            },
+          ]
+        : undefined;
 
-    const session = await stripe.checkout.sessions.create({
-      mode: "payment",
-      line_items: lineItems,
+    const squareOrder: SquareOrder = {
+      locationId: getSquareLocationId(),
+      referenceId: order.id,
+      lineItems,
       discounts,
-      customer_email: customerEmail,
-      shipping_address_collection:
-        shippingOption.id === "local-pickup" ? undefined : { allowed_countries: ["US"] },
-      success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${siteUrl}/cart`,
-      metadata: { orderId: order.id },
+    };
+
+    const response = await square.checkout.paymentLinks.create({
+      idempotencyKey: order.id,
+      order: squareOrder,
+      checkoutOptions: {
+        redirectUrl: `${siteUrl}/checkout/success?order_id=${order.id}`,
+        askForShippingAddress: shippingOption.id !== "local-pickup",
+        acceptedPaymentMethods: {
+          applePay: true,
+          googlePay: true,
+          cashAppPay: true,
+        },
+      },
+      prePopulatedData: { buyerEmail: customerEmail },
     });
+
+    if (!response.paymentLink?.url || !response.paymentLink.orderId) {
+      throw new Error("Square did not return a payment link");
+    }
 
     await prisma.order.update({
       where: { id: order.id },
-      data: { stripeSessionId: session.id },
+      data: { squareOrderId: response.paymentLink.orderId },
     });
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: response.paymentLink.url });
   } catch (err) {
     console.error("Checkout failed:", err);
     const message =
-      err instanceof Error && err.message.includes("STRIPE_SECRET_KEY")
+      err instanceof Error && err.message.includes("SQUARE_")
         ? "Online checkout isn't fully configured yet — please call us to complete your order."
         : "Checkout failed. Please try again or contact us.";
     return NextResponse.json({ error: message }, { status: 503 });

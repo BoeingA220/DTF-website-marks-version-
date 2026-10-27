@@ -9,7 +9,7 @@ import { BUSINESS } from "@/lib/constants";
 
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id");
+  const orderId = searchParams.get("order_id");
   const clear = useCartStore((s) => s.clear);
 
   useEffect(() => {
@@ -27,8 +27,8 @@ function CheckoutSuccessContent() {
         Thanks for your order — a confirmation email is on its way. We&apos;ll
         notify you again once it ships.
       </p>
-      {sessionId && (
-        <p className="text-xs text-ink/40">Reference: {sessionId.slice(-12)}</p>
+      {orderId && (
+        <p className="text-xs text-ink/40">Reference: {orderId.slice(-12).toUpperCase()}</p>
       )}
       <p className="text-sm text-ink/50">
         Questions? Call us at{" "}

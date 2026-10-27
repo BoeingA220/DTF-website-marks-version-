@@ -194,7 +194,7 @@ export function CartSummary() {
         <p className="text-center text-xs font-semibold text-accent">{checkoutError}</p>
       )}
       <p className="text-center text-xs text-ink/40">
-        Secure checkout powered by Stripe — Card, Apple Pay, Google Pay &amp; Link accepted.
+        Secure checkout powered by Square — Card, Apple Pay, Google Pay &amp; Cash App Pay accepted.
       </p>
     </div>
   );
