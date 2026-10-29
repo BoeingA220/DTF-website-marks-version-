@@ -150,8 +150,22 @@ available — `src/components/layout/Logo.tsx` is the only place it's referenced
 
 ## Deploying
 
-Deploys cleanly to [Vercel](https://vercel.com/new): connect the repo, add all
-the environment variables from `.env.example`, and set the Square webhook
-endpoint to your production URL (step 3 above). Run
-`npx prisma migrate deploy` against production `DATABASE_URL`/`DIRECT_URL`
-before first launch.
+Deploys to [Netlify](https://app.netlify.com) via its official Next.js
+runtime (auto-detected, no extra config needed):
+
+1. **Add new site → Import an existing project**, pick this GitHub repo.
+2. Add all the environment variables from `.env.example` under
+   **Site configuration → Environment variables**.
+3. Deploy, then set `NEXT_PUBLIC_SITE_URL` to the live Netlify URL (or your
+   custom domain) and redeploy — Square's webhook signature check depends on
+   this matching exactly.
+4. Point the Square webhook subscription (step 3 above) at
+   `https://<your-site>/api/webhooks/square`.
+5. Run `npx prisma migrate deploy` against production
+   `DATABASE_URL`/`DIRECT_URL` before first launch.
+
+Note: Netlify's serverless functions have tighter request-size limits than
+this app's artwork uploader allows (up to 100MB). If large uploads fail in
+production, switch `/api/upload` to issue a signed URL and have the browser
+upload directly to Supabase Storage instead of routing the file through the
+function.
